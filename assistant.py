@@ -256,19 +256,78 @@ def assistant_speak(text):
 
 #-----------------------------------------------------------------------------------------
 
-import pulsectl
+# The ID and range of a sample spreadsheet.
+SPREADSHEET_ID = '1ZxnVG6puM7j7xid56RzJ6O91hz5OnFN0kzctdkAq8t0'
 
-pulse = pulsectl.Pulse('set-volume-example')
-default_sink = pulse.sink_list()[0]
-pulse.volume_set_all_chans(default_sink, 1)
+# If modifying these scopes, delete the file token.json.
+spreadsheet_scopes = ['https://www.googleapis.com/auth/spreadsheets']
+
+
+def authenticate_google_sheet():
+    """Shows basic usage of the Sheets API.
+    Prints values from a sample spreadsheet.
+    """
+    creds = None
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('credentials/sheet/token.json'):
+        creds = Credentials.from_authorized_user_file('credentials/sheet/token.json', spreadsheet_scopes )
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials/sheet/credentials.json', spreadsheet_scopes)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('credentials/sheet/token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    try:
+        sheet_service = build('sheets', 'v4', credentials=creds)
+    except HttpError as error:
+        print('An error occurred: %s' % error)
+    return sheet_service        
 #-------------------------------------------------------------------------
+   
+def get_shoppinglist():
+    ListRangeName = 'shoppinglist!A:A'
+    include_grid_data = False# TODO: Update placeholder value.
+    
+    
+    try:
+        result = sheet_service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=ListRangeName
+        ).execute()
+        values = result.get("values")
+        
+        results = []
+        for i in values:
+            s =""
+            for j in i:
+                s += j
+                assistant_speak(s)
+        
+    except HttpError as error:
+        print(f'An error occurred: {error}')
+
+    for result in results:
+        print(result)
+ 
+        
+
+#--------------------------------------------------------------------------
 
 # set the username
-username = 'john'
+username = 'hello'
 
 # authenticate with Google Calendar API
 wake = "hello " + username
 service = authenticate_google_calendar()
+sheet_service = authenticate_google_sheet()
 
 mic = pyaudio.PyAudio()
 stream = mic.open(format = pyaudio.paInt16, channels = 1, rate =16000, input = True, frames_per_buffer=8192)
@@ -293,7 +352,7 @@ while True:
     if len(frame)>0:
         
         if frame[0] == "hello " + username:
-            CALENDAR_STRS = ["what do i have", "do i have plans", "am i busy", "tell me my appointment", "any plans"]
+            CALENDAR_STRS = ["what do i have", "do i have plans", "am i busy", "tell me my appointment", "any plan"]
             for phrase in CALENDAR_STRS:
                 if phrase in text.lower():
                     date = get_date(text)
@@ -302,4 +361,15 @@ while True:
                         frame = []
                     else:
                         assistant_speak("Please try again")
-                        frame = []           
+                        frame = []  
+                        
+            
+            shopping_list = ["shopping list", "grocery list"]
+            for item_check in shopping_list:
+                if item_check in text.lower():
+                    Grocery_STRS = ["what i have", "tell me", "give me", "what do i have"]
+                    for phrase in Grocery_STRS:
+                         if phrase in text.lower():
+                                get_shoppinglist()
+                                frame = []
+                            
